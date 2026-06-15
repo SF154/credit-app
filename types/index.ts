@@ -1,5 +1,5 @@
 export type ApplicationStatus = 'sent' | 'in_progress' | 'submitted' | 'approved' | 'rejected' | 'incomplete'
-export type FieldType = 'text_single' | 'text_multi' | 'date' | 'number' | 'signature' | 'file_pdf'
+export type FieldType = 'text_single' | 'text_multi' | 'date' | 'number' | 'signature' | 'file' | 'select' | 'boolean'
 export type FormType = 'credit' | 'cod'
 
 export interface Company {
@@ -17,7 +17,7 @@ export interface UserProfile {
 
 export interface FormTemplate {
   id: string
-  company_id: string
+  company_id: string | null // NULL for platform-level defaults
   name: string
   type: FormType
   is_default: boolean
@@ -26,9 +26,18 @@ export interface FormTemplate {
   updated_at: string
 }
 
+export interface FormTemplateSection {
+  id: string
+  template_id: string
+  label: string
+  display_order: number
+  created_at: string
+}
+
 export interface FormTemplateField {
   id: string
   template_id: string
+  section_id: string
   field_key: string
   label: string
   field_type: FieldType
@@ -36,6 +45,14 @@ export interface FormTemplateField {
   display_order: number
   config: Record<string, unknown> | null
   created_at: string
+}
+
+export interface FormTemplateSectionWithFields extends FormTemplateSection {
+  form_template_fields: FormTemplateField[]
+}
+
+export interface FormTemplateWithSections extends FormTemplate {
+  form_template_sections: FormTemplateSectionWithFields[]
 }
 
 export interface Application {
@@ -90,10 +107,6 @@ export interface ApplicationStatusHistory {
   changed_by: string | null
   notes: string | null
   changed_at: string
-}
-
-export interface FormTemplateWithFields extends FormTemplate {
-  form_template_fields: FormTemplateField[]
 }
 
 export interface ApplicationWithTemplate extends Application {
