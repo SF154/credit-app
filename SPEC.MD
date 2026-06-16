@@ -119,6 +119,7 @@ verification
 companies
 user_profiles           (links Better Auth users to companies)
 form_templates
+form_template_sections  (groups fields within a template)
 form_template_fields
 applications
 application_field_responses
@@ -222,14 +223,34 @@ CREATE TABLE user_profiles (
 ```sql
 CREATE TABLE form_templates (
   id           UUID PRIMARY KEY DEFAULT gen_random_uuid(),
-  company_id   UUID NOT NULL REFERENCES companies(id) ON DELETE CASCADE,
+  company_id   UUID REFERENCES companies(id) ON DELETE CASCADE,  -- NULL for platform-level defaults
   name         TEXT NOT NULL,                        -- e.g. "Credit Application - Standard"
   type         TEXT NOT NULL CHECK (type IN ('credit', 'cod')),
-  is_default   BOOLEAN NOT NULL DEFAULT false,       -- true for system-seeded templates
+  is_default   BOOLEAN NOT NULL DEFAULT false,       -- true for platform-seeded templates
   created_by   TEXT NOT NULL,                        -- Better Auth user.id
   created_at   TIMESTAMPTZ NOT NULL DEFAULT now(),
   updated_at   TIMESTAMPTZ NOT NULL DEFAULT now()
 );
+```
+
+> **Implementation note:** Platform default templates have `company_id = NULL` and `is_default = true`. They are shared across all companies (read-only). Custom templates are company-scoped (`company_id` set) and can be edited or deleted.
+
+---
+
+### Table: `form_template_sections`
+
+Fields within a template are grouped into ordered sections. Every field belongs to exactly one section.
+
+```sql
+CREATE TABLE form_template_sections (
+  id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  template_id     UUID NOT NULL REFERENCES form_templates(id) ON DELETE CASCADE,
+  label           TEXT NOT NULL,                     -- Section heading displayed on the form
+  display_order   INTEGER NOT NULL DEFAULT 0,
+  created_at      TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE INDEX idx_form_template_sections_template_id ON form_template_sections(template_id);
 ```
 
 ---
@@ -240,14 +261,15 @@ CREATE TABLE form_templates (
 CREATE TABLE form_template_fields (
   id              UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   template_id     UUID NOT NULL REFERENCES form_templates(id) ON DELETE CASCADE,
+  section_id      UUID NOT NULL REFERENCES form_template_sections(id) ON DELETE CASCADE,
   field_key       TEXT NOT NULL,                     -- Machine identifier, e.g. "business_name"
   label           TEXT NOT NULL,                     -- Display label
   field_type      TEXT NOT NULL CHECK (field_type IN (
-                    'text_single', 'text_multi', 'date', 'number', 'signature', 'file_pdf'
+                    'text_single', 'text_multi', 'date', 'number', 'signature', 'file', 'select', 'boolean'
                   )),
   is_required     BOOLEAN NOT NULL DEFAULT true,
   display_order   INTEGER NOT NULL DEFAULT 0,
-  config          JSONB,                             -- Optional: placeholder, validation hints
+  config          JSONB,                             -- Optional: placeholder, options (for select), validation hints
   created_at      TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 ```
@@ -358,6 +380,7 @@ $$ LANGUAGE sql SECURITY DEFINER;
 ALTER TABLE companies ENABLE ROW LEVEL SECURITY;
 ALTER TABLE user_profiles ENABLE ROW LEVEL SECURITY;
 ALTER TABLE form_templates ENABLE ROW LEVEL SECURITY;
+ALTER TABLE form_template_sections ENABLE ROW LEVEL SECURITY;
 ALTER TABLE form_template_fields ENABLE ROW LEVEL SECURITY;
 ALTER TABLE applications ENABLE ROW LEVEL SECURITY;
 ALTER TABLE application_field_responses ENABLE ROW LEVEL SECURITY;
@@ -371,6 +394,14 @@ CREATE POLICY "company_isolation" ON companies
 -- form_templates: company-scoped
 CREATE POLICY "templates_company_scope" ON form_templates
   FOR ALL USING (company_id = auth_company_id());
+
+-- form_template_sections: via template
+CREATE POLICY "sections_company_scope" ON form_template_sections
+  FOR ALL USING (
+    template_id IN (
+      SELECT id FROM form_templates WHERE company_id = auth_company_id()
+    )
+  );
 
 -- form_template_fields: via template
 CREATE POLICY "fields_company_scope" ON form_template_fields
@@ -479,8 +510,9 @@ CREATE POLICY "history_company_scope" ON application_status_history
 ├── components/
 │   ├── ui/                               # Reusable UI primitives (buttons, inputs, badges)
 │   ├── form-builder/
-│   │   ├── FieldList.tsx                 # Drag-to-reorder field list
-│   │   ├── FieldEditor.tsx               # Edit a single field
+│   │   ├── SectionList.tsx               # Drag-to-reorder section list
+│   │   ├── SectionEditor.tsx             # Edit a single section (label + its fields)
+│   │   ├── FieldEditor.tsx               # Edit a single field within a section
 │   │   └── FieldTypeSelector.tsx
 │   ├── form-renderer/
 │   │   ├── FormRenderer.tsx              # Renders form fields dynamically (recipient view)
@@ -554,7 +586,9 @@ Users can create and customise form templates saved per company. Two system defa
 | `date` | Date | Date picker |
 | `number` | Number | Numeric input |
 | `signature` | Signature | Canvas-based free-hand |
-| `file_pdf` | PDF Upload | File input (PDF only) |
+| `file` | File Upload | File input (PDF only) |
+| `select` | Dropdown | Single-select from options list (options stored in `config.options`) |
+| `boolean` | Yes / No | Toggle or checkbox |
 
 **FR-T-05:** Template changes auto-save or are saved on explicit "Save" action. Unsaved changes display a visual indicator.
 
