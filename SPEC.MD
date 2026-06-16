@@ -1037,7 +1037,7 @@ CREATE POLICY "company_file_access" ON storage.objects
    - Install `@aws-sdk/client-ses`.
    - Create `lib/email/ses.ts` with `sendEmail(to, subject, body)` wrapper.
    - Configure SES credentials via environment variables.
-5. Verify: applications appear in DB, email received with correct link.
+5. Verify: applications appear in DB, email received with correct link..
 
 **Deliverable:** Applications can be sent; applicants receive email with unique link.
 
