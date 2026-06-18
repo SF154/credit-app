@@ -13,6 +13,7 @@ export function ReviewPanel({ applicationId }: ReviewPanelProps) {
   const router = useRouter()
   const [pending, setPending] = useState<Action | null>(null)
   const [rejectionReason, setRejectionReason] = useState('')
+  const [incompleteFeedback, setIncompleteFeedback] = useState('')
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
@@ -21,6 +22,7 @@ export function ReviewPanel({ applicationId }: ReviewPanelProps) {
     setPending(action)
     setError(null)
     if (action !== 'reject') setRejectionReason('')
+    if (action !== 'incomplete') setIncompleteFeedback('')
   }
 
   const handleConfirm = async () => {
@@ -35,6 +37,7 @@ export function ReviewPanel({ applicationId }: ReviewPanelProps) {
         body: JSON.stringify({
           status: pending === 'approve' ? 'approved' : pending === 'reject' ? 'rejected' : 'incomplete',
           rejectionReason: pending === 'reject' ? rejectionReason.trim() : undefined,
+          incompleteFeedback: pending === 'incomplete' && incompleteFeedback.trim() ? incompleteFeedback.trim() : undefined,
         }),
       })
 
@@ -62,6 +65,7 @@ export function ReviewPanel({ applicationId }: ReviewPanelProps) {
     setPending(null)
     setError(null)
     setRejectionReason('')
+    setIncompleteFeedback('')
   }
 
   return (
@@ -116,10 +120,25 @@ export function ReviewPanel({ applicationId }: ReviewPanelProps) {
           )}
 
           {pending === 'incomplete' && (
-            <p className="text-sm text-zinc-700">
-              Return this application as incomplete? The applicant will be sent a link to revisit
-              and update their form. Their token expiry will be extended by 30 days.
-            </p>
+            <div className="space-y-3">
+              <p className="text-sm text-zinc-700">
+                Return this application as incomplete? The applicant will be sent a link to revisit
+                and update their form. Their token expiry will be extended by 30 days.
+              </p>
+              <div className="space-y-1.5">
+                <div className="flex items-baseline gap-2">
+                  <label className="block text-sm font-medium text-zinc-700">Additional Feedback</label>
+                  <span className="text-xs text-zinc-400">Optionally provide specific feedback to guide the applicant on what they still need to do</span>
+                </div>
+                <textarea
+                  value={incompleteFeedback}
+                  onChange={(e) => setIncompleteFeedback(e.target.value)}
+                  rows={3}
+                  placeholder="e.g. Please upload a clear copy of your trade reference and complete the banking details section…"
+                  className="w-full rounded-lg border border-zinc-300 px-3 py-2 text-sm text-zinc-900 placeholder:text-zinc-400 focus:outline-none focus:ring-2 focus:ring-zinc-900 focus:border-transparent resize-none"
+                />
+              </div>
+            </div>
           )}
 
           {pending === 'reject' && (

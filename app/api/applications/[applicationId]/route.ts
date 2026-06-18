@@ -47,15 +47,19 @@ function buildIncompleteEmail(
   companyName: string,
   templateType: string,
   appUrl: string,
-  token: string
+  token: string,
+  feedback?: string
 ) {
   const typeLabel = templateType === 'credit' ? 'Credit' : 'COD'
+  const feedbackSection = feedback
+    ? `\nFeedback from ${companyName}:\n${feedback}\n`
+    : ''
   return {
     subject: `Action Required: Your Application Needs Attention — ${companyName}`,
     body: `Hi ${applicantCompany},
 
 Your ${typeLabel} application submitted to ${companyName} requires some additional information or corrections before it can be processed.
-
+${feedbackSection}
 Please revisit your application using the link below:
 
 Continue Your Application: ${appUrl}/apply/${token}
@@ -102,6 +106,7 @@ export async function GET(request: NextRequest, ctx: RouteContext) {
 const ReviewSchema = z.object({
   status: z.enum(['approved', 'rejected', 'incomplete']),
   rejectionReason: z.string().optional(),
+  incompleteFeedback: z.string().optional(),
   notes: z.string().optional(),
 })
 
@@ -146,7 +151,7 @@ export async function PATCH(request: NextRequest, ctx: RouteContext) {
   }
 
   // Review action — status transition
-  const { status, rejectionReason, notes } = parsed.data
+  const { status, rejectionReason, incompleteFeedback, notes } = parsed.data
   if (app.status !== 'submitted') return NextResponse.json({ error: 'Already actioned' }, { status: 409 })
 
   const now = new Date()
@@ -216,7 +221,8 @@ export async function PATCH(request: NextRequest, ctx: RouteContext) {
         companyName,
         templateType,
         appUrl,
-        app.token
+        app.token,
+        incompleteFeedback
       )
       await sendEmail(app.applicant_email, subject, emailBody)
     }
