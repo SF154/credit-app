@@ -99,11 +99,17 @@ export async function GET(request: NextRequest, ctx: RouteContext) {
   return NextResponse.json(app)
 }
 
-const UpdateSchema = z.object({
+const ReviewSchema = z.object({
   status: z.enum(['approved', 'rejected', 'incomplete']),
   rejectionReason: z.string().optional(),
   notes: z.string().optional(),
 })
+
+const RenewalSchema = z.object({
+  renewalDate: z.string().nullable(),
+})
+
+const UpdateSchema = z.union([ReviewSchema, RenewalSchema])
 
 export async function PATCH(request: NextRequest, ctx: RouteContext) {
   const { applicationId } = await ctx.params
@@ -116,9 +122,6 @@ export async function PATCH(request: NextRequest, ctx: RouteContext) {
     return NextResponse.json({ error: parsed.error.flatten() }, { status: 422 })
   }
 
-  const { status, rejectionReason, notes } = parsed.data
-
-
   const supabase = getSupabaseServerClient()
 
   const { data: app, error: fetchError } = await supabase
@@ -129,6 +132,21 @@ export async function PATCH(request: NextRequest, ctx: RouteContext) {
 
   if (fetchError || !app) return NextResponse.json({ error: 'Not found' }, { status: 404 })
   if (app.company_id !== session.companyId) return NextResponse.json({ error: 'Not found' }, { status: 404 })
+
+  // Renewal date update — separate code path, no status transition
+  if ('renewalDate' in parsed.data) {
+    if (app.status !== 'approved') {
+      return NextResponse.json({ error: 'Renewal date only applies to approved applications' }, { status: 409 })
+    }
+    await supabase
+      .from('applications')
+      .update({ renewal_date: parsed.data.renewalDate, updated_at: new Date().toISOString() })
+      .eq('id', applicationId)
+    return NextResponse.json({ success: true })
+  }
+
+  // Review action — status transition
+  const { status, rejectionReason, notes } = parsed.data
   if (app.status !== 'submitted') return NextResponse.json({ error: 'Already actioned' }, { status: 409 })
 
   const now = new Date()

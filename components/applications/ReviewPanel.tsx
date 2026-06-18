@@ -75,8 +75,8 @@ export function ReviewPanel({ applicationId }: ReviewPanelProps) {
           disabled={loading}
           className={`rounded-lg border px-4 py-2 text-sm font-medium transition-colors ${
             pending === 'approve'
-              ? 'bg-green-600 border-green-600 text-white'
-              : 'border-green-300 text-green-700 hover:bg-green-50'
+              ? 'bg-blue-500 border-blue-500 text-white'
+              : 'border-blue-300 text-blue-600 hover:bg-blue-50'
           } disabled:opacity-50`}
         >
           Approve
@@ -151,7 +151,7 @@ export function ReviewPanel({ applicationId }: ReviewPanelProps) {
               disabled={loading}
               className={`rounded-lg px-4 py-2 text-sm font-medium text-white transition-colors disabled:opacity-50 ${
                 pending === 'approve'
-                  ? 'bg-green-600 hover:bg-green-700'
+                  ? 'bg-blue-500 hover:bg-blue-600'
                   : pending === 'reject'
                   ? 'bg-red-600 hover:bg-red-700'
                   : 'bg-amber-500 hover:bg-amber-600'
