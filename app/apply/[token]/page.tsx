@@ -89,21 +89,31 @@ export default function ApplyPage({ params }: { params: Promise<{ token: string 
     })
   }, [params])
 
-  // Derived: true when every required field has a value
+  // Derived: true when every required field has a value AND T&C is satisfied
   const allFilled = useMemo(() => {
     if (!formData) return false
     const requiredFields = formData.template.form_template_sections
       .flatMap((s) => s.form_template_fields.filter((f) => f.is_required))
-    if (requiredFields.length === 0) return true
-    return requiredFields.every((field) => {
-      if (field.field_type === 'file') return uploadedFileIds.has(field.id)
-      const r = currentResponseMap.get(field.id)
-      if (!r) return false
-      if (r.valueText != null && r.valueText.trim() !== '') return true
-      if (r.valueJson != null) return true
-      return false
-    })
+    const fieldsFilled =
+      requiredFields.length === 0 ||
+      requiredFields.every((field) => {
+        if (field.field_type === 'file') return uploadedFileIds.has(field.id)
+        const r = currentResponseMap.get(field.id)
+        if (!r) return false
+        if (r.valueText != null && r.valueText.trim() !== '') return true
+        if (r.valueJson != null) return true
+        return false
+      })
+    const termsRequired = !!formData.template.terms_pdf_path
+    const termsSatisfied = !termsRequired || !!formData.application.terms_signed_pdf_path
+    return fieldsFilled && termsSatisfied
   }, [formData, currentResponseMap, uploadedFileIds])
+
+  // Show T&C banner whenever T&C is configured and not yet signed
+  const showTermsBanner = useMemo(() => {
+    if (!formData) return false
+    return !!formData.template.terms_pdf_path && !formData.application.terms_signed_pdf_path
+  }, [formData])
 
   const saveProgress = useCallback(
     async (responses: { fieldId: string; valueText?: string; valueJson?: unknown }[]) => {
@@ -201,7 +211,25 @@ export default function ApplyPage({ params }: { params: Promise<{ token: string 
           onFileUploaded={handleFileUploaded}
         />
 
-        <div className="mt-10 flex justify-end">
+        {showTermsBanner && (
+          <div className="mt-8 rounded-lg border border-amber-200 bg-amber-50 px-4 py-4 flex items-start justify-between gap-4">
+            <div>
+              <p className="text-sm font-medium text-amber-800">One more step required</p>
+              <p className="text-xs text-amber-700 mt-0.5">
+                Please review and sign the Terms &amp; Conditions before submitting.
+              </p>
+            </div>
+            <button
+              type="button"
+              onClick={() => router.push(`/apply/${token}/terms`)}
+              className="shrink-0 rounded-lg bg-amber-600 px-4 py-2 text-xs font-medium text-white hover:bg-amber-700 transition-colors"
+            >
+              Sign Terms &amp; Conditions →
+            </button>
+          </div>
+        )}
+
+        <div className="mt-6 flex justify-end">
           <button
             type="button"
             disabled={!allFilled}

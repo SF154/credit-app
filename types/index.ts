@@ -24,6 +24,7 @@ export interface FormTemplate {
   created_by: string
   created_at: string
   updated_at: string
+  terms_pdf_path: string | null
 }
 
 export interface FormTemplateSection {
@@ -74,6 +75,7 @@ export interface Application {
   rejection_reason: string | null
   renewal_date: string | null
   renewal_reminded_at: string | null
+  terms_signed_pdf_path: string | null
   created_at: string
   updated_at: string
 }

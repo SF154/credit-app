@@ -22,7 +22,7 @@ export async function POST(request: NextRequest, ctx: RouteContext) {
 
   const { data: app, error } = await supabase
     .from('applications')
-    .select('id, company_id, template_id, token_expires_at, status')
+    .select('id, company_id, template_id, token_expires_at, status, terms_signed_pdf_path')
     .eq('token', token)
     .single()
 
@@ -80,7 +80,11 @@ export async function POST(request: NextRequest, ctx: RouteContext) {
   const completion_pct = calculateCompletionPct(
     sections,
     (allResponses ?? []) as ApplicationFieldResponse[],
-    (allFiles ?? []) as ApplicationFile[]
+    (allFiles ?? []) as ApplicationFile[],
+    {
+      termsRequired: !!(template as { terms_pdf_path?: string | null } | null)?.terms_pdf_path,
+      termsSigned: !!(app as { terms_signed_pdf_path?: string | null }).terms_signed_pdf_path,
+    }
   )
 
   await supabase

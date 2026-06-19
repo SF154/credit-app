@@ -1,9 +1,9 @@
 'use client'
 
-import { useEffect, useState, useCallback } from 'react'
+import { useEffect, useRef, useState, useCallback } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import Link from 'next/link'
-import { ArrowLeft, Save } from 'lucide-react'
+import { ArrowLeft, Save, FileText, Upload, Trash2 } from 'lucide-react'
 import SectionList from '@/components/form-builder/SectionList'
 import { EditableSection } from '@/components/form-builder/SectionEditor'
 import { FormTemplateWithSections } from '@/types'
@@ -40,6 +40,10 @@ export default function TemplateEditorPage() {
   const [saving, setSaving] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [isDirty, setIsDirty] = useState(false)
+  const [termsPdfPath, setTermsPdfPath] = useState<string | null>(null)
+  const [termsUploading, setTermsUploading] = useState(false)
+  const [termsError, setTermsError] = useState<string | null>(null)
+  const termsFileRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => {
     fetch(`/api/templates/${templateId}`)
@@ -53,6 +57,7 @@ export default function TemplateEditorPage() {
         setTemplate(data)
         setName(data.name)
         setSections(toEditableSections(data))
+        setTermsPdfPath(data.terms_pdf_path ?? null)
         setLoading(false)
       })
   }, [templateId, router])
@@ -107,6 +112,38 @@ export default function TemplateEditorPage() {
     }
 
     setSaving(false)
+  }
+
+  async function handleTermsUpload(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0]
+    if (!file) return
+    setTermsUploading(true)
+    setTermsError(null)
+    const fd = new FormData()
+    fd.append('file', file)
+    const res = await fetch(`/api/templates/${templateId}/terms-pdf`, { method: 'POST', body: fd })
+    if (res.ok) {
+      const data = await res.json()
+      setTermsPdfPath(data.terms_pdf_path)
+    } else {
+      const data = await res.json()
+      setTermsError(data.error ?? 'Upload failed')
+    }
+    setTermsUploading(false)
+    if (termsFileRef.current) termsFileRef.current.value = ''
+  }
+
+  async function handleTermsRemove() {
+    setTermsUploading(true)
+    setTermsError(null)
+    const res = await fetch(`/api/templates/${templateId}/terms-pdf`, { method: 'DELETE' })
+    if (res.ok) {
+      setTermsPdfPath(null)
+    } else {
+      const data = await res.json()
+      setTermsError(data.error ?? 'Remove failed')
+    }
+    setTermsUploading(false)
   }
 
   if (loading) {
@@ -164,6 +201,63 @@ export default function TemplateEditorPage() {
 
       {/* Section editor */}
       <SectionList sections={sections} onChange={handleSectionsChange} />
+
+      {/* Terms & Conditions */}
+      <div className="rounded-xl border border-zinc-200 bg-white px-5 py-4 space-y-3">
+        <div className="flex items-center gap-2">
+          <FileText size={15} className="text-zinc-500" />
+          <h2 className="text-sm font-semibold text-zinc-800">Terms &amp; Conditions</h2>
+        </div>
+        <p className="text-xs text-zinc-500">
+          Upload a PDF that applicants must review and sign before they can submit the form. Optional — if not set, no T&amp;C step appears.
+        </p>
+
+        {termsPdfPath ? (
+          <div className="flex items-center gap-3">
+            <span className="text-sm text-zinc-700 truncate flex-1">
+              {termsPdfPath.split('/').pop()}
+            </span>
+            <button
+              type="button"
+              onClick={handleTermsRemove}
+              disabled={termsUploading}
+              className="flex items-center gap-1.5 text-xs text-red-600 hover:text-red-800 disabled:opacity-40 transition-colors"
+            >
+              <Trash2 size={13} />
+              Remove
+            </button>
+            <button
+              type="button"
+              onClick={() => termsFileRef.current?.click()}
+              disabled={termsUploading}
+              className="flex items-center gap-1.5 text-xs text-zinc-600 hover:text-zinc-900 disabled:opacity-40 transition-colors"
+            >
+              <Upload size={13} />
+              Replace
+            </button>
+          </div>
+        ) : (
+          <button
+            type="button"
+            onClick={() => termsFileRef.current?.click()}
+            disabled={termsUploading}
+            className="flex items-center gap-2 px-3 py-1.5 text-xs font-medium text-zinc-700 border border-zinc-300 rounded-lg hover:bg-zinc-50 disabled:opacity-40 transition-colors"
+          >
+            <Upload size={13} />
+            {termsUploading ? 'Uploading…' : 'Upload PDF'}
+          </button>
+        )}
+
+        {termsError && <p className="text-xs text-red-500">{termsError}</p>}
+
+        <input
+          ref={termsFileRef}
+          type="file"
+          accept="application/pdf"
+          className="hidden"
+          onChange={handleTermsUpload}
+        />
+      </div>
     </div>
   )
 }

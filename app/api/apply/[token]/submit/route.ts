@@ -16,7 +16,7 @@ export async function POST(_req: NextRequest, ctx: RouteContext) {
 
   const { data: app, error } = await supabase
     .from('applications')
-    .select('*, form_templates(type, name)')
+    .select('*, form_templates(type, name), terms_signed_pdf_path')
     .eq('token', token)
     .single()
 
@@ -41,10 +41,18 @@ export async function POST(_req: NextRequest, ctx: RouteContext) {
   ])
 
   const sections = (template?.form_template_sections ?? []) as FormTemplateSectionWithFields[]
+  const termsRequired = !!(template as { terms_pdf_path?: string | null } | null)?.terms_pdf_path
+  const termsSigned = !!(app as { terms_signed_pdf_path?: string | null }).terms_signed_pdf_path
+
+  if (termsRequired && !termsSigned) {
+    return NextResponse.json({ error: 'terms_required' }, { status: 422 })
+  }
+
   const pct = calculateCompletionPct(
     sections,
     (responses ?? []) as ApplicationFieldResponse[],
-    (files ?? []) as ApplicationFile[]
+    (files ?? []) as ApplicationFile[],
+    { termsRequired, termsSigned }
   )
 
   if (pct < 100) {

@@ -3,13 +3,17 @@ import type { FormTemplateSectionWithFields, ApplicationFieldResponse, Applicati
 export function calculateCompletionPct(
   sections: FormTemplateSectionWithFields[],
   responses: ApplicationFieldResponse[],
-  files: ApplicationFile[]
+  files: ApplicationFile[],
+  opts?: { termsRequired: boolean; termsSigned: boolean }
 ): number {
   const requiredFields = sections.flatMap((s) =>
     s.form_template_fields.filter((f) => f.is_required)
   )
 
-  if (requiredFields.length === 0) return 100
+  const termsWeight = opts?.termsRequired ? 1 : 0
+  const totalRequired = requiredFields.length + termsWeight
+
+  if (totalRequired === 0) return 100
 
   const responseMap = new Map(responses.map((r) => [r.field_id, r]))
   const fileFieldIds = new Set(files.map((f) => f.field_id))
@@ -23,5 +27,7 @@ export function calculateCompletionPct(
     return false
   })
 
-  return Math.round((filled.length / requiredFields.length) * 100)
+  const termsFilled = opts?.termsRequired && opts?.termsSigned ? 1 : 0
+
+  return Math.round(((filled.length + termsFilled) / totalRequired) * 100)
 }

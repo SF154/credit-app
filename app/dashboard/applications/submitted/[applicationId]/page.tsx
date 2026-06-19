@@ -148,6 +148,16 @@ export default async function SubmissionReviewPage({ params }: RouteContext) {
     })
   )
 
+  // Signed URL for the signed T&C PDF (if present)
+  let termsSignedUrl: string | null = null
+  const termsPath = (app as Application).terms_signed_pdf_path
+  if (termsPath) {
+    const { data: termsData } = await supabase.storage
+      .from('application-files')
+      .createSignedUrl(termsPath, 3600)
+    termsSignedUrl = termsData?.signedUrl ?? null
+  }
+
   const application = app as Application & { form_templates: FormTemplateWithSections }
   const template = application.form_templates
   const typeLabel = template.type === 'credit' ? 'Credit' : 'COD'
@@ -157,7 +167,7 @@ export default async function SubmissionReviewPage({ params }: RouteContext) {
     (a, b) => a.display_order - b.display_order
   )
 
-  const alreadyActioned = app.status !== 'submitted'
+  const alreadyActioned = application.status !== 'submitted'
 
   return (
     <div className="space-y-6 max-w-3xl">
@@ -214,6 +224,29 @@ export default async function SubmissionReviewPage({ params }: RouteContext) {
           )
         })}
       </div>
+
+      {/* Signed T&C */}
+      {termsSignedUrl && (
+        <div className="rounded-lg border border-zinc-200 bg-white px-5 py-4 space-y-2">
+          <h2 className="text-sm font-semibold text-zinc-800">Signed Terms &amp; Conditions</h2>
+          <a
+            href={termsSignedUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center gap-1.5 text-sm text-blue-700 underline underline-offset-2 hover:text-blue-900"
+          >
+            <svg className="h-4 w-4 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                strokeWidth={2}
+                d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
+              />
+            </svg>
+            signed_terms.pdf
+          </a>
+        </div>
+      )}
 
       {/* Review action */}
       {alreadyActioned ? (
